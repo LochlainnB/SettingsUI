@@ -16,36 +16,46 @@ namespace SettingsUI
             VoiceVolume
         }
 
+        private bool doneInit = false;
+
         private static RumbleModUI.Mod audioSettings = new RumbleModUI.Mod();
         private static RumbleModUI.ModSetting<float> masterVolume;
         private static RumbleModUI.ModSetting<float> sfxVolume;
         private static RumbleModUI.ModSetting<float> musicVolume;
         private static RumbleModUI.ModSetting<float> voiceVolume;
 
-        // Load settings
         public override void OnLateInitializeMelon()
         {
+            RumbleModUI.UI.instance.UI_Initialized += OnUIInit;
+        }
+
+        public override void OnSceneWasLoaded(int buildIndex, string sceneName)
+        {
+            if (doneInit || !AudioManager.instance.ConfigLoaded)
+                return;
+
+            RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
+
             audioSettings.ModName = "SettingsUI";
             audioSettings.ModVersion = "1.0.0";
             audioSettings.SetFolder("SettingsUI");
-            audioSettings.SetSubFolder("Audio");
 
-            masterVolume = audioSettings.AddToList("Master Volume", 1.0f, "Master volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", new RumbleModUI.Tags());
-            sfxVolume = audioSettings.AddToList("SFX Volume", 1.0f, "Sound effects volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", new RumbleModUI.Tags());
-            musicVolume = audioSettings.AddToList("Music Volume", 1.0f, "Music volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", new RumbleModUI.Tags());
-            voiceVolume = audioSettings.AddToList("Voice Volume", 1.0f, "Voice volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", new RumbleModUI.Tags());
+            AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
 
-            audioSettings.GetFromFile();
+            // Initialize our settings with the saved Rumble settings
+            masterVolume = audioSettings.AddToList("Master Volume", audioConfig.MasterVolume, "Master volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
+            sfxVolume = audioSettings.AddToList("SFX Volume", audioConfig.SFXVolume, "Sound effects volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
+            musicVolume = audioSettings.AddToList("Music Volume", audioConfig.MusicVolume, "Music volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
+            voiceVolume = audioSettings.AddToList("Voice Volume", audioConfig.VoiceVolume, "Voice volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
 
             masterVolume.SavedValueChanged += masterVolumeChanged;
             sfxVolume.SavedValueChanged += sfxVolumeChanged;
             musicVolume.SavedValueChanged += musicVolumeChanged;
             voiceVolume.SavedValueChanged += voiceVolumeChanged;
 
-            RumbleModUI.UI.instance.UI_Initialized += OnUIInit;
+            doneInit = true;
         }
 
-        // Display settings
         public static void OnUIInit()
         {
             RumbleModUI.UI.instance.AddMod(audioSettings);
