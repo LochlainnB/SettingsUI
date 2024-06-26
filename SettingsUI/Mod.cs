@@ -19,6 +19,7 @@ namespace SettingsUI
 
         private static bool doneInit = false;
         private static bool undoNextAudioConfig = false;
+        private static bool configChangeFromSelf = false;
 
         private static Il2CppRUMBLE.UI.SettingsForm settingsForm;
 
@@ -42,8 +43,35 @@ namespace SettingsUI
                     audioConfig.MusicVolume = (float)musicVolume.Value;
                     audioConfig.VoiceVolume = (float)voiceVolume.Value;
                     undoNextAudioConfig = false;
+                    configChangeFromSelf = true;
                     __instance.ApplyConfiguration(audioConfig);
                     __instance.SaveConfiguration();
+                }
+                else if (!configChangeFromSelf)
+                {
+                    // Call came from SettingsForm after user input. Update our settings
+                    // Temporarily remove our event handlers to prevent infinite loops
+                    masterVolume.SavedValueChanged -= masterVolumeChanged;
+                    sfxVolume.SavedValueChanged -= sfxVolumeChanged;
+                    musicVolume.SavedValueChanged -= musicVolumeChanged;
+                    voiceVolume.SavedValueChanged -= voiceVolumeChanged;
+                    masterVolume.SavedValue = config.MasterVolume;
+                    sfxVolume.SavedValue = config.SFXVolume;
+                    musicVolume.SavedValue = config.MusicVolume;
+                    voiceVolume.SavedValue = config.VoiceVolume;
+                    masterVolume.SavedValueChanged += masterVolumeChanged;
+                    sfxVolume.SavedValueChanged += sfxVolumeChanged;
+                    musicVolume.SavedValueChanged += musicVolumeChanged;
+                    voiceVolume.SavedValueChanged += voiceVolumeChanged;
+                    masterVolume.Value = config.MasterVolume;
+                    sfxVolume.Value = config.SFXVolume;
+                    musicVolume.Value = config.MusicVolume;
+                    voiceVolume.Value = config.VoiceVolume;
+                    RumbleModUI.UI.instance.ForceRefresh();
+                }
+                else
+                {
+                    configChangeFromSelf = false;
                 }
             }
         }
@@ -113,8 +141,28 @@ namespace SettingsUI
                     MelonLogger.Warning("Tried to save invalid setting.");
                     break;
             }
+            configChangeFromSelf = true;
             AudioManager.instance.ApplyConfiguration(audioConfig);
             AudioManager.instance.SaveConfiguration();
+
+            if (settingsForm != null)
+            {
+                switch (type)
+                {
+                    case SettingType.MasterVolume:
+                        settingsForm.masterVolumeSlider.MoveToValue(settingsForm.masterVolumeSlider.ConvertToValue(Math.Min(Math.Max(value, 0.0f), 1.0f)));
+                        break;
+                    case SettingType.SFXVolume:
+                        settingsForm.effectsVolumeSlider.MoveToValue(settingsForm.effectsVolumeSlider.ConvertToValue(Math.Min(Math.Max(value, 0.0f), 1.0f)));
+                        break;
+                    case SettingType.MusicVolume:
+                        settingsForm.musicVolumeSlider.MoveToValue(settingsForm.musicVolumeSlider.ConvertToValue(Math.Min(Math.Max(value, 0.0f), 1.0f)));
+                        break;
+                    case SettingType.VoiceVolume:
+                        settingsForm.dialogueVolumeSlider.MoveToValue(settingsForm.dialogueVolumeSlider.ConvertToValue(Math.Min(Math.Max(value, 0.0f), 1.0f)));
+                        break;
+                }
+            }
         }
         public static void masterVolumeChanged(object sender, EventArgs args)
         {
