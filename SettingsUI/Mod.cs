@@ -1,5 +1,6 @@
 ﻿using MelonLoader;
 using UnityEngine;
+using HarmonyLib;
 using System;
 using Il2CppRUMBLE.Managers;
 using Il2CppRUMBLE.Serialization;
@@ -16,13 +17,36 @@ namespace SettingsUI
             VoiceVolume
         }
 
-        private bool doneInit = false;
+        private static bool doneInit = false;
+        private static bool undoNextAudioConfig = false;
+
+        private static Il2CppRUMBLE.UI.SettingsForm settingsForm;
 
         private static RumbleModUI.Mod audioSettings = new RumbleModUI.Mod();
         private static RumbleModUI.ModSetting<float> masterVolume;
         private static RumbleModUI.ModSetting<float> sfxVolume;
         private static RumbleModUI.ModSetting<float> musicVolume;
         private static RumbleModUI.ModSetting<float> voiceVolume;
+
+        [HarmonyPatch(typeof(AudioManager), "ApplyConfiguration")]
+        private static class AudioManager_ApplyConfiguration_Patch
+        {
+            private static void Postfix(AudioManager __instance, AudioConfiguration config)
+            {
+                if (undoNextAudioConfig)
+                {
+                    // Call came from SettingsForm's initialisation and clamped any out of range values. Undo this
+                    AudioConfiguration audioConfig;
+                    audioConfig.MasterVolume = (float)masterVolume.Value;
+                    audioConfig.SFXVolume = (float)sfxVolume.Value;
+                    audioConfig.MusicVolume = (float)musicVolume.Value;
+                    audioConfig.VoiceVolume = (float)voiceVolume.Value;
+                    undoNextAudioConfig = false;
+                    __instance.ApplyConfiguration(audioConfig);
+                    __instance.SaveConfiguration();
+                }
+            }
+        }
 
         public override void OnLateInitializeMelon()
         {
@@ -31,6 +55,12 @@ namespace SettingsUI
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
+            settingsForm = GameObject.FindObjectOfType<Il2CppRUMBLE.UI.SettingsForm>();
+            if (settingsForm != null)
+            {
+                undoNextAudioConfig = true;
+            }
+
             if (doneInit || !AudioManager.instance.ConfigLoaded)
                 return;
 
