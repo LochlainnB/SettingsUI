@@ -1,9 +1,12 @@
 ﻿using MelonLoader;
+using RumbleModdingAPI;
 using UnityEngine;
 using HarmonyLib;
 using System;
 using Il2CppRUMBLE.Managers;
 using Il2CppRUMBLE.Serialization;
+using Il2CppRUMBLE.Interactions.InteractionBase;
+using System.Collections;
 
 namespace SettingsUI
 {
@@ -22,6 +25,12 @@ namespace SettingsUI
         private static bool configChangeFromSelf = false;
 
         private static Il2CppRUMBLE.UI.SettingsForm settingsForm;
+
+        private static GameObject templateSlider;
+        private static GameObject voiceSlider;
+
+        // How much the forearm slider should allow boosting beyond the normal volume limit
+        private static float boostFactor = 2.0f;
 
         private static RumbleModUI.Mod audioSettings = new RumbleModUI.Mod();
         private static RumbleModUI.ModSetting<float> masterVolume;
@@ -59,6 +68,7 @@ namespace SettingsUI
                     sfxVolume.SavedValue = config.SFXVolume;
                     musicVolume.SavedValue = config.MusicVolume;
                     voiceVolume.SavedValue = config.VoiceVolume;
+                    UpdateVoiceSlider(config.VoiceVolume);
                     masterVolume.SavedValueChanged += masterVolumeChanged;
                     sfxVolume.SavedValueChanged += sfxVolumeChanged;
                     musicVolume.SavedValueChanged += musicVolumeChanged;
@@ -95,7 +105,7 @@ namespace SettingsUI
             RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
 
             audioSettings.ModName = "SettingsUI";
-            audioSettings.ModVersion = "1.0.0";
+            audioSettings.ModVersion = "1.1.0";
             audioSettings.SetFolder("SettingsUI");
 
             AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
@@ -112,6 +122,42 @@ namespace SettingsUI
             voiceVolume.SavedValueChanged += voiceVolumeChanged;
 
             doneInit = true;
+        }
+
+        public override void OnFixedUpdate()
+        {
+            if (Calls.Scene.GetSceneName() == "Gym" && templateSlider == null)
+            {
+                templateSlider = GameObject.Instantiate(Calls.GameObjects.Gym.Logic.SlabbuddyMenuVariant.MenuForm.Base.AudioSlab.GetGameObject().transform.GetChild(0).GetChild(0).gameObject);
+                templateSlider.name = "TemplateSlider";
+                templateSlider.SetActive(false);
+                GameObject.DontDestroyOnLoad(templateSlider);
+            }
+            if (voiceSlider == null && templateSlider != null && PlayerManager.instance != null && PlayerManager.instance.localPlayer != null && PlayerManager.instance.localPlayer.Controller != null)
+            {
+                // Parent: Player Controller/Visuals/RIG/Bone_Pelvis/Bone_Spine/Bone_Chest/Bone_Shoulderblade_L/Bone_Shoulder_L/Bone_Lowerarm_L/
+                voiceSlider = GameObject.Instantiate(templateSlider, PlayerManager.instance.localPlayer.Controller.gameObject.transform.GetChild(5).GetChild(7).GetChild(0).GetChild(2).GetChild(0).GetChild(1).GetChild(0).GetChild(0));
+                voiceSlider.name = "VoiceSlider";
+                voiceSlider.SetActive(true);
+                voiceSlider.transform.localPosition = new Vector3(0.02f, 0.08f, 0.02f);
+                voiceSlider.transform.localRotation = Quaternion.Euler(355.0f, 320.0f, 273.0f);
+                voiceSlider.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
+                MelonCoroutines.Start(LateUpdateVoiceSlider((float)voiceVolume.SavedValue));
+                InteractionSlider interactionSlider = voiceSlider.GetComponentInChildren<InteractionSlider>();
+                interactionSlider.OnNormalizedValueChanged.AddListener(new System.Action<float>(value =>
+                {
+                    value = (float)Math.Round(value * boostFactor, 2);
+                    ChangeSetting(SettingType.VoiceVolume, value);
+                    voiceVolume.SavedValueChanged -= voiceVolumeChanged;
+                    voiceVolume.SavedValue = value;
+                    voiceVolume.SavedValueChanged += voiceVolumeChanged;
+                    voiceVolume.Value = value;
+                    RumbleModUI.UI.instance.ForceRefresh();
+                }));
+                // This is necessary to prevent interference with moves and accidental voice volume changes
+                interactionSlider.interactionDistancePercentage = 0.3f;
+                interactionSlider.usePreInteractionLerps = false;
+            }
         }
 
         public static void OnUIInit()
@@ -164,6 +210,22 @@ namespace SettingsUI
                 }
             }
         }
+
+        private static IEnumerator LateUpdateVoiceSlider(float value)
+        {
+            yield return null;
+            UpdateVoiceSlider(value);
+        }
+
+        private static void UpdateVoiceSlider(float value)
+        {
+            if (voiceSlider != null)
+            {
+                InteractionSlider interactionSlider = voiceSlider.GetComponentInChildren<InteractionSlider>();
+                interactionSlider.MoveToValue(interactionSlider.ConvertToValue(Math.Min(Math.Max(value / boostFactor, 0.0f), 1.0f)));
+            }
+        }
+
         public static void masterVolumeChanged(object sender, EventArgs args)
         {
             ChangeSetting(SettingType.MasterVolume, ((RumbleModUI.ValueChange<float>)args).Value);
@@ -179,6 +241,7 @@ namespace SettingsUI
         public static void voiceVolumeChanged(object sender, EventArgs args)
         {
             ChangeSetting(SettingType.VoiceVolume, ((RumbleModUI.ValueChange<float>)args).Value);
+            UpdateVoiceSlider(((RumbleModUI.ValueChange<float>)args).Value);
         }
     }
 }
