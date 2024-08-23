@@ -87,6 +87,18 @@ namespace SettingsUI
             }
         }
 
+        // Stop left hand from interacting with the voice slider
+        [HarmonyPatch(typeof(InteractionHand), "StartPreInteraction")]
+        private static class InteractionHand_StartPreInteraction_Patch
+        {
+            private static bool Prefix(InteractionHand __instance, InteractionBase interaction)
+            {
+                if (__instance.gameObject == PlayerManager.instance.localPlayer.Controller.gameObject.transform.GetChild(1).GetChild(1).gameObject && interaction.transform.parent.name == "VoiceSlider")
+                    return false;
+                return true;
+            }
+        }
+
         public override void OnLateInitializeMelon()
         {
             RumbleModUI.UI.instance.UI_Initialized += OnUIInit;
