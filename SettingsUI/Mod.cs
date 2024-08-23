@@ -118,7 +118,7 @@ namespace SettingsUI
             RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
 
             audioSettings.ModName = "SettingsUI";
-            audioSettings.ModVersion = "1.1.1";
+            audioSettings.ModVersion = "1.1.2";
             audioSettings.SetFolder("SettingsUI");
 
             AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
@@ -173,8 +173,8 @@ namespace SettingsUI
                     voiceVolume.Value = value;
                     RumbleModUI.UI.instance.ForceRefresh();
                 }));
-                // This is necessary to prevent interference with moves and accidental voice volume changes
-                interactionSlider.interactionDistancePercentage = 0.3f;
+                interactionSlider.interactionDistancePercentage = 0.6f;
+                // This is necessary to prevent interference with moves
                 interactionSlider.usePreInteractionLerps = false;
             }
         }
