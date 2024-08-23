@@ -37,6 +37,7 @@ namespace SettingsUI
         private static RumbleModUI.ModSetting<float> sfxVolume;
         private static RumbleModUI.ModSetting<float> musicVolume;
         private static RumbleModUI.ModSetting<float> voiceVolume;
+        private static RumbleModUI.ModSetting<bool> enableSlider;
 
         [HarmonyPatch(typeof(AudioManager), "ApplyConfiguration")]
         private static class AudioManager_ApplyConfiguration_Patch
@@ -105,7 +106,7 @@ namespace SettingsUI
             RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
 
             audioSettings.ModName = "SettingsUI";
-            audioSettings.ModVersion = "1.1.0";
+            audioSettings.ModVersion = "1.1.1";
             audioSettings.SetFolder("SettingsUI");
 
             AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
@@ -116,10 +117,16 @@ namespace SettingsUI
             musicVolume = audioSettings.AddToList("Music Volume", audioConfig.MusicVolume, "Music volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
             voiceVolume = audioSettings.AddToList("Voice Volume", audioConfig.VoiceVolume, "Voice volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
 
+            enableSlider = audioSettings.AddToList("Enable Slider", true, 0, "Enable the forearm-mounted slider which lets you adjust voice chat volume while in game. The slider's range is 0%-200%.", new RumbleModUI.Tags());
+
+            audioSettings.GetFromFile();
+
             masterVolume.SavedValueChanged += masterVolumeChanged;
             sfxVolume.SavedValueChanged += sfxVolumeChanged;
             musicVolume.SavedValueChanged += musicVolumeChanged;
             voiceVolume.SavedValueChanged += voiceVolumeChanged;
+
+            enableSlider.SavedValueChanged += enableSliderChanged;
 
             doneInit = true;
         }
@@ -138,7 +145,7 @@ namespace SettingsUI
                 // Parent: Player Controller/Visuals/RIG/Bone_Pelvis/Bone_Spine/Bone_Chest/Bone_Shoulderblade_L/Bone_Shoulder_L/Bone_Lowerarm_L/
                 voiceSlider = GameObject.Instantiate(templateSlider, PlayerManager.instance.localPlayer.Controller.gameObject.transform.GetChild(5).GetChild(7).GetChild(0).GetChild(2).GetChild(0).GetChild(1).GetChild(0).GetChild(0));
                 voiceSlider.name = "VoiceSlider";
-                voiceSlider.SetActive(true);
+                voiceSlider.SetActive((bool)enableSlider.SavedValue);
                 voiceSlider.transform.localPosition = new Vector3(0.02f, 0.08f, 0.02f);
                 voiceSlider.transform.localRotation = Quaternion.Euler(355.0f, 320.0f, 273.0f);
                 voiceSlider.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
@@ -242,6 +249,16 @@ namespace SettingsUI
         {
             ChangeSetting(SettingType.VoiceVolume, ((RumbleModUI.ValueChange<float>)args).Value);
             UpdateVoiceSlider(((RumbleModUI.ValueChange<float>)args).Value);
+        }
+        public static void enableSliderChanged(object sender, EventArgs args)
+        {
+            if (voiceSlider != null)
+            {
+                if ((bool)((RumbleModUI.ValueChange<bool>)args).Value)
+                    voiceSlider.SetActive(true);
+                else
+                    voiceSlider.SetActive(false);
+            }
         }
     }
 }
