@@ -26,9 +26,6 @@ namespace SettingsUI
 
         private static Il2CppRUMBLE.UI.SettingsForm settingsForm;
 
-        private static GameObject templateSlider;
-        private static GameObject voiceSlider;
-
         // How much the forearm slider should allow boosting beyond the normal volume limit
         private static float boostFactor = 2.0f;
 
@@ -37,7 +34,8 @@ namespace SettingsUI
         private static RumbleModUI.ModSetting<float> sfxVolume;
         private static RumbleModUI.ModSetting<float> musicVolume;
         private static RumbleModUI.ModSetting<float> voiceVolume;
-        private static RumbleModUI.ModSetting<bool> enableSlider;
+
+        private static Slider.Setting voiceSlider;
 
         [HarmonyPatch(typeof(AudioManager), "ApplyConfiguration")]
         private static class AudioManager_ApplyConfiguration_Patch
@@ -65,15 +63,17 @@ namespace SettingsUI
                     sfxVolume.SavedValueChanged -= sfxVolumeChanged;
                     musicVolume.SavedValueChanged -= musicVolumeChanged;
                     voiceVolume.SavedValueChanged -= voiceVolumeChanged;
+                    voiceSlider.ValueChanged -= voiceSliderChanged;
                     masterVolume.SavedValue = config.MasterVolume;
                     sfxVolume.SavedValue = config.SFXVolume;
                     musicVolume.SavedValue = config.MusicVolume;
                     voiceVolume.SavedValue = config.VoiceVolume;
-                    UpdateVoiceSlider(config.VoiceVolume);
+                    voiceSlider.Value = config.VoiceVolume;
                     masterVolume.SavedValueChanged += masterVolumeChanged;
                     sfxVolume.SavedValueChanged += sfxVolumeChanged;
                     musicVolume.SavedValueChanged += musicVolumeChanged;
                     voiceVolume.SavedValueChanged += voiceVolumeChanged;
+                    voiceSlider.ValueChanged += voiceSliderChanged;
                     masterVolume.Value = config.MasterVolume;
                     sfxVolume.Value = config.SFXVolume;
                     musicVolume.Value = config.MusicVolume;
@@ -93,7 +93,7 @@ namespace SettingsUI
         {
             private static bool Prefix(InteractionHand __instance, InteractionBase interaction)
             {
-                if (__instance.gameObject == PlayerManager.instance.localPlayer.Controller.gameObject.transform.GetChild(1).GetChild(1).gameObject && interaction.transform.parent.name == "VoiceSlider")
+                if (__instance.gameObject == PlayerManager.instance.localPlayer.Controller.gameObject.transform.GetChild(1).GetChild(1).gameObject && interaction.transform.parent.name == "SettingSlider")
                     return false;
                 return true;
             }
@@ -101,11 +101,15 @@ namespace SettingsUI
 
         public override void OnLateInitializeMelon()
         {
+            Slider.OnLateInitializeMelon();
+
             RumbleModUI.UI.instance.UI_Initialized += OnUIInit;
         }
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
+            Slider.OnSceneWasLoaded(buildIndex, sceneName);
+
             settingsForm = GameObject.FindObjectOfType<Il2CppRUMBLE.UI.SettingsForm>();
             if (settingsForm != null)
             {
@@ -128,55 +132,21 @@ namespace SettingsUI
             sfxVolume = audioSettings.AddToList("SFX Volume", audioConfig.SFXVolume, "Sound effects volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
             musicVolume = audioSettings.AddToList("Music Volume", audioConfig.MusicVolume, "Music volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
             voiceVolume = audioSettings.AddToList("Voice Volume", audioConfig.VoiceVolume, "Voice volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
-
-            enableSlider = audioSettings.AddToList("Enable Slider", true, 0, "Enable the forearm-mounted slider which lets you adjust voice chat volume while in game. The slider's range is 0%-200%.", new RumbleModUI.Tags());
-
             audioSettings.GetFromFile();
-
             masterVolume.SavedValueChanged += masterVolumeChanged;
             sfxVolume.SavedValueChanged += sfxVolumeChanged;
             musicVolume.SavedValueChanged += musicVolumeChanged;
             voiceVolume.SavedValueChanged += voiceVolumeChanged;
 
-            enableSlider.SavedValueChanged += enableSliderChanged;
+            voiceSlider = Slider.AddSetting("Global Voice Volume", "Lets you adjust voice chat volume with the arm slider. The slider's range is 0%-200%.", 0.0f, 1.0f * boostFactor, audioConfig.VoiceVolume, 2);
+            voiceSlider.ValueChanged += voiceSliderChanged;
 
             doneInit = true;
         }
 
         public override void OnFixedUpdate()
         {
-            if (Calls.Scene.GetSceneName() == "Gym" && templateSlider == null)
-            {
-                templateSlider = GameObject.Instantiate(Calls.GameObjects.Gym.Logic.SlabbuddyMenuVariant.MenuForm.Base.AudioSlab.GetGameObject().transform.GetChild(0).GetChild(0).gameObject);
-                templateSlider.name = "TemplateSlider";
-                templateSlider.SetActive(false);
-                GameObject.DontDestroyOnLoad(templateSlider);
-            }
-            if (voiceSlider == null && templateSlider != null && PlayerManager.instance != null && PlayerManager.instance.localPlayer != null && PlayerManager.instance.localPlayer.Controller != null)
-            {
-                // Parent: Player Controller/Visuals/RIG/Bone_Pelvis/Bone_Spine/Bone_Chest/Bone_Shoulderblade_L/Bone_Shoulder_L/Bone_Lowerarm_L/
-                voiceSlider = GameObject.Instantiate(templateSlider, PlayerManager.instance.localPlayer.Controller.gameObject.transform.GetChild(5).GetChild(7).GetChild(0).GetChild(2).GetChild(0).GetChild(1).GetChild(0).GetChild(0));
-                voiceSlider.name = "VoiceSlider";
-                voiceSlider.SetActive((bool)enableSlider.SavedValue);
-                voiceSlider.transform.localPosition = new Vector3(0.02f, 0.08f, 0.02f);
-                voiceSlider.transform.localRotation = Quaternion.Euler(355.0f, 320.0f, 273.0f);
-                voiceSlider.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
-                MelonCoroutines.Start(LateUpdateVoiceSlider((float)voiceVolume.SavedValue));
-                InteractionSlider interactionSlider = voiceSlider.GetComponentInChildren<InteractionSlider>();
-                interactionSlider.OnNormalizedValueChanged.AddListener(new System.Action<float>(value =>
-                {
-                    value = (float)Math.Round(value * boostFactor, 2);
-                    ChangeSetting(SettingType.VoiceVolume, value);
-                    voiceVolume.SavedValueChanged -= voiceVolumeChanged;
-                    voiceVolume.SavedValue = value;
-                    voiceVolume.SavedValueChanged += voiceVolumeChanged;
-                    voiceVolume.Value = value;
-                    RumbleModUI.UI.instance.ForceRefresh();
-                }));
-                interactionSlider.interactionDistancePercentage = 0.6f;
-                // This is necessary to prevent interference with moves
-                interactionSlider.usePreInteractionLerps = false;
-            }
+            Slider.OnFixedUpdate();
         }
 
         public static void OnUIInit()
@@ -230,21 +200,6 @@ namespace SettingsUI
             }
         }
 
-        private static IEnumerator LateUpdateVoiceSlider(float value)
-        {
-            yield return null;
-            UpdateVoiceSlider(value);
-        }
-
-        private static void UpdateVoiceSlider(float value)
-        {
-            if (voiceSlider != null)
-            {
-                InteractionSlider interactionSlider = voiceSlider.GetComponentInChildren<InteractionSlider>();
-                interactionSlider.MoveToValue(interactionSlider.ConvertToValue(Math.Min(Math.Max(value / boostFactor, 0.0f), 1.0f)));
-            }
-        }
-
         public static void masterVolumeChanged(object sender, EventArgs args)
         {
             ChangeSetting(SettingType.MasterVolume, ((RumbleModUI.ValueChange<float>)args).Value);
@@ -260,17 +215,18 @@ namespace SettingsUI
         public static void voiceVolumeChanged(object sender, EventArgs args)
         {
             ChangeSetting(SettingType.VoiceVolume, ((RumbleModUI.ValueChange<float>)args).Value);
-            UpdateVoiceSlider(((RumbleModUI.ValueChange<float>)args).Value);
+            voiceSlider.ValueChanged -= voiceSliderChanged;
+            voiceSlider.Value = ((RumbleModUI.ValueChange<float>)args).Value;
+            voiceSlider.ValueChanged += voiceSliderChanged;
         }
-        public static void enableSliderChanged(object sender, EventArgs args)
+        public static void voiceSliderChanged(object sender, Slider.ValueChangedEventArgs args)
         {
-            if (voiceSlider != null)
-            {
-                if ((bool)((RumbleModUI.ValueChange<bool>)args).Value)
-                    voiceSlider.SetActive(true);
-                else
-                    voiceSlider.SetActive(false);
-            }
+            ChangeSetting(SettingType.VoiceVolume, args.Value);
+            voiceVolume.SavedValueChanged -= voiceVolumeChanged;
+            voiceVolume.SavedValue = args.Value;
+            voiceVolume.SavedValueChanged += voiceVolumeChanged;
+            voiceVolume.Value = args.Value;
+            RumbleModUI.UI.instance.ForceRefresh();
         }
     }
 }
