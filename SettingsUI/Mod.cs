@@ -26,6 +26,7 @@ namespace SettingsUI
 
         // How much the forearm slider should allow boosting beyond the normal volume limit
         private static float boostFactor = 2.0f;
+        private static float boostFactor = 4.0f;
 
         private static RumbleModUI.Mod audioSettings = new RumbleModUI.Mod();
         private static RumbleModUI.ModSetting<float> masterVolume;
