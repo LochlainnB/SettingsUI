@@ -1,12 +1,10 @@
 ﻿using MelonLoader;
-using RumbleModdingAPI;
+using ArmSlider;
 using UnityEngine;
 using HarmonyLib;
 using System;
 using Il2CppRUMBLE.Managers;
 using Il2CppRUMBLE.Serialization;
-using Il2CppRUMBLE.Interactions.InteractionBase;
-using System.Collections;
 
 namespace SettingsUI
 {
@@ -87,29 +85,13 @@ namespace SettingsUI
             }
         }
 
-        // Stop left hand from interacting with the voice slider
-        [HarmonyPatch(typeof(InteractionHand), "StartPreInteraction")]
-        private static class InteractionHand_StartPreInteraction_Patch
-        {
-            private static bool Prefix(InteractionHand __instance, InteractionBase interaction)
-            {
-                if (__instance.gameObject == PlayerManager.instance.localPlayer.Controller.gameObject.transform.GetChild(1).GetChild(1).gameObject && interaction.transform.parent.name == "SettingSlider")
-                    return false;
-                return true;
-            }
-        }
-
         public override void OnLateInitializeMelon()
         {
-            Slider.OnLateInitializeMelon();
-
             RumbleModUI.UI.instance.UI_Initialized += OnUIInit;
         }
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
-            Slider.OnSceneWasLoaded(buildIndex, sceneName);
-
             settingsForm = GameObject.FindObjectOfType<Il2CppRUMBLE.UI.SettingsForm>();
             if (settingsForm != null)
             {
@@ -122,7 +104,7 @@ namespace SettingsUI
             RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
 
             audioSettings.ModName = "SettingsUI";
-            audioSettings.ModVersion = "1.1.2";
+            audioSettings.ModVersion = "1.1.3";
             audioSettings.SetFolder("SettingsUI");
 
             AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
@@ -142,11 +124,6 @@ namespace SettingsUI
             voiceSlider.ValueChanged += voiceSliderChanged;
 
             doneInit = true;
-        }
-
-        public override void OnFixedUpdate()
-        {
-            Slider.OnFixedUpdate();
         }
 
         public static void OnUIInit()
