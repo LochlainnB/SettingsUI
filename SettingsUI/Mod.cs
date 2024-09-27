@@ -25,7 +25,6 @@ namespace SettingsUI
         private static Il2CppRUMBLE.UI.SettingsForm settingsForm;
 
         // How much the forearm slider should allow boosting beyond the normal volume limit
-        private static float boostFactor = 2.0f;
         private static float boostFactor = 4.0f;
 
         private static RumbleModUI.Mod audioSettings = new RumbleModUI.Mod();
@@ -34,6 +33,9 @@ namespace SettingsUI
         private static RumbleModUI.ModSetting<float> musicVolume;
         private static RumbleModUI.ModSetting<float> voiceVolume;
 
+        private static Slider.Setting masterSlider;
+        private static Slider.Setting sfxSlider;
+        private static Slider.Setting musicSlider;
         private static Slider.Setting voiceSlider;
 
         [HarmonyPatch(typeof(AudioManager), "ApplyConfiguration")]
@@ -62,16 +64,25 @@ namespace SettingsUI
                     sfxVolume.SavedValueChanged -= sfxVolumeChanged;
                     musicVolume.SavedValueChanged -= musicVolumeChanged;
                     voiceVolume.SavedValueChanged -= voiceVolumeChanged;
+                    masterSlider.ValueChanged -= masterSliderChanged;
+                    sfxSlider.ValueChanged -= sfxSliderChanged;
+                    musicSlider.ValueChanged -= musicSliderChanged;
                     voiceSlider.ValueChanged -= voiceSliderChanged;
                     masterVolume.SavedValue = config.MasterVolume;
                     sfxVolume.SavedValue = config.SFXVolume;
                     musicVolume.SavedValue = config.MusicVolume;
                     voiceVolume.SavedValue = config.VoiceVolume;
+                    masterSlider.Value = config.MasterVolume;
+                    sfxSlider.Value = config.SFXVolume;
+                    musicSlider.Value = config.MusicVolume;
                     voiceSlider.Value = config.VoiceVolume;
                     masterVolume.SavedValueChanged += masterVolumeChanged;
                     sfxVolume.SavedValueChanged += sfxVolumeChanged;
                     musicVolume.SavedValueChanged += musicVolumeChanged;
                     voiceVolume.SavedValueChanged += voiceVolumeChanged;
+                    masterSlider.ValueChanged += masterSliderChanged;
+                    sfxSlider.ValueChanged += sfxSliderChanged;
+                    musicSlider.ValueChanged += musicSliderChanged;
                     voiceSlider.ValueChanged += voiceSliderChanged;
                     masterVolume.Value = config.MasterVolume;
                     sfxVolume.Value = config.SFXVolume;
@@ -105,7 +116,7 @@ namespace SettingsUI
             RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
 
             audioSettings.ModName = "SettingsUI";
-            audioSettings.ModVersion = "1.1.3";
+            audioSettings.ModVersion = "1.2.0";
             audioSettings.SetFolder("SettingsUI");
 
             AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
@@ -121,7 +132,13 @@ namespace SettingsUI
             musicVolume.SavedValueChanged += musicVolumeChanged;
             voiceVolume.SavedValueChanged += voiceVolumeChanged;
 
-            voiceSlider = Slider.AddSetting("Global Voice Volume", "Lets you adjust voice chat volume with the arm slider. The slider's range is 0%-200%.", 0.0f, 1.0f * boostFactor, audioConfig.VoiceVolume, 2);
+            masterSlider = Slider.AddSetting("Master Volume", "Lets you adjust master volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.MasterVolume, 2);
+            sfxSlider = Slider.AddSetting("SFX Volume", "Lets you adjust sound effects volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.SFXVolume, 2);
+            musicSlider = Slider.AddSetting("Music Volume", "Lets you adjust music volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.MusicVolume, 2);
+            voiceSlider = Slider.AddSetting("Global Voice Volume", "Lets you adjust voice chat volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.VoiceVolume, 2);
+            masterSlider.ValueChanged += masterSliderChanged;
+            sfxSlider.ValueChanged += sfxSliderChanged;
+            musicSlider.ValueChanged += musicSliderChanged;
             voiceSlider.ValueChanged += voiceSliderChanged;
 
             doneInit = true;
@@ -181,14 +198,23 @@ namespace SettingsUI
         public static void masterVolumeChanged(object sender, EventArgs args)
         {
             ChangeSetting(SettingType.MasterVolume, ((RumbleModUI.ValueChange<float>)args).Value);
+            masterSlider.ValueChanged -= masterSliderChanged;
+            masterSlider.Value = ((RumbleModUI.ValueChange<float>)args).Value;
+            masterSlider.ValueChanged += masterSliderChanged;
         }
         public static void sfxVolumeChanged(object sender, EventArgs args)
         {
             ChangeSetting(SettingType.SFXVolume, ((RumbleModUI.ValueChange<float>)args).Value);
+            sfxSlider.ValueChanged -= sfxSliderChanged;
+            sfxSlider.Value = ((RumbleModUI.ValueChange<float>)args).Value;
+            sfxSlider.ValueChanged += sfxSliderChanged;
         }
         public static void musicVolumeChanged(object sender, EventArgs args)
         {
             ChangeSetting(SettingType.MusicVolume, ((RumbleModUI.ValueChange<float>)args).Value);
+            musicSlider.ValueChanged -= musicSliderChanged;
+            musicSlider.Value = ((RumbleModUI.ValueChange<float>)args).Value;
+            musicSlider.ValueChanged += musicSliderChanged;
         }
         public static void voiceVolumeChanged(object sender, EventArgs args)
         {
@@ -196,6 +222,33 @@ namespace SettingsUI
             voiceSlider.ValueChanged -= voiceSliderChanged;
             voiceSlider.Value = ((RumbleModUI.ValueChange<float>)args).Value;
             voiceSlider.ValueChanged += voiceSliderChanged;
+        }
+        public static void masterSliderChanged(object sender, Slider.ValueChangedEventArgs args)
+        {
+            ChangeSetting(SettingType.MasterVolume, args.Value);
+            masterVolume.SavedValueChanged -= masterVolumeChanged;
+            masterVolume.SavedValue = args.Value;
+            masterVolume.SavedValueChanged += masterVolumeChanged;
+            masterVolume.Value = args.Value;
+            RumbleModUI.UI.instance.ForceRefresh();
+        }
+        public static void sfxSliderChanged(object sender, Slider.ValueChangedEventArgs args)
+        {
+            ChangeSetting(SettingType.SFXVolume, args.Value);
+            sfxVolume.SavedValueChanged -= sfxVolumeChanged;
+            sfxVolume.SavedValue = args.Value;
+            sfxVolume.SavedValueChanged += sfxVolumeChanged;
+            sfxVolume.Value = args.Value;
+            RumbleModUI.UI.instance.ForceRefresh();
+        }
+        public static void musicSliderChanged(object sender, Slider.ValueChangedEventArgs args)
+        {
+            ChangeSetting(SettingType.MusicVolume, args.Value);
+            musicVolume.SavedValueChanged -= musicVolumeChanged;
+            musicVolume.SavedValue = args.Value;
+            musicVolume.SavedValueChanged += musicVolumeChanged;
+            musicVolume.Value = args.Value;
+            RumbleModUI.UI.instance.ForceRefresh();
         }
         public static void voiceSliderChanged(object sender, Slider.ValueChangedEventArgs args)
         {
