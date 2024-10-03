@@ -5,6 +5,9 @@ using HarmonyLib;
 using System;
 using Il2CppRUMBLE.Managers;
 using Il2CppRUMBLE.Serialization;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
 
 namespace SettingsUI
 {
@@ -18,14 +21,18 @@ namespace SettingsUI
             VoiceVolume
         }
 
+        // How much the forearm slider should allow boosting beyond the normal volume limit
+        private static float boostFactor = 4.0f;
+        // Upper limit for the individual voice volume slider
+        private static float individualVolumeLimit = 2.0f;
+        // Path to the individual voice volumes settings file
+        private static string individualVolumesPath = "UserData/SettingsUI/IndividualVolumes.txt";
+
         private static bool doneInit = false;
         private static bool undoNextAudioConfig = false;
         private static bool configChangeFromSelf = false;
 
         private static Il2CppRUMBLE.UI.SettingsForm settingsForm;
-
-        // How much the forearm slider should allow boosting beyond the normal volume limit
-        private static float boostFactor = 4.0f;
 
         private static RumbleModUI.Mod audioSettings = new RumbleModUI.Mod();
         private static RumbleModUI.ModSetting<float> masterVolume;
@@ -37,6 +44,11 @@ namespace SettingsUI
         private static Slider.Setting sfxSlider;
         private static Slider.Setting musicSlider;
         private static Slider.Setting voiceSlider;
+        private static Slider.Setting individualVolumeSlider;
+
+        private static Dictionary<string, float> individualVolumes = new Dictionary<string, float>();
+        private static string opponentName = "";
+        private static bool doSave = false;
 
         [HarmonyPatch(typeof(AudioManager), "ApplyConfiguration")]
         private static class AudioManager_ApplyConfiguration_Patch
@@ -100,51 +112,87 @@ namespace SettingsUI
         public override void OnLateInitializeMelon()
         {
             RumbleModUI.UI.instance.UI_Initialized += OnUIInit;
+            LoadIndividualVolumes();
         }
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
-            settingsForm = GameObject.FindObjectOfType<Il2CppRUMBLE.UI.SettingsForm>();
-            if (settingsForm != null)
+            if (!doneInit && AudioManager.instance.ConfigLoaded)
             {
-                undoNextAudioConfig = true;
+                RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
+
+                audioSettings.ModName = "SettingsUI";
+                audioSettings.ModVersion = "1.3.0";
+                audioSettings.SetFolder("SettingsUI");
+
+                AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
+
+                // Initialize our settings with the saved Rumble settings
+                masterVolume = audioSettings.AddToList("Master Volume", audioConfig.MasterVolume, "Master volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
+                sfxVolume = audioSettings.AddToList("SFX Volume", audioConfig.SFXVolume, "Sound effects volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
+                musicVolume = audioSettings.AddToList("Music Volume", audioConfig.MusicVolume, "Music volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
+                voiceVolume = audioSettings.AddToList("Voice Volume", audioConfig.VoiceVolume, "Voice volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
+                audioSettings.GetFromFile();
+                masterVolume.SavedValueChanged += masterVolumeChanged;
+                sfxVolume.SavedValueChanged += sfxVolumeChanged;
+                musicVolume.SavedValueChanged += musicVolumeChanged;
+                voiceVolume.SavedValueChanged += voiceVolumeChanged;
+
+                masterSlider = Slider.AddSetting("Master Volume", "Lets you adjust master volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.MasterVolume, 2);
+                sfxSlider = Slider.AddSetting("SFX Volume", "Lets you adjust sound effects volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.SFXVolume, 2);
+                musicSlider = Slider.AddSetting("Music Volume", "Lets you adjust music volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.MusicVolume, 2);
+                voiceSlider = Slider.AddSetting("Global Voice Volume", "Lets you adjust voice chat volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.VoiceVolume, 2);
+                individualVolumeSlider = Slider.AddSetting("Individual Voice Volume", "Lets you adjust the volume of individual players' voices. The slider's range is 0%-200%.", 0.0f, individualVolumeLimit, 1.0f, 2);
+                masterSlider.ValueChanged += masterSliderChanged;
+                sfxSlider.ValueChanged += sfxSliderChanged;
+                musicSlider.ValueChanged += musicSliderChanged;
+                voiceSlider.ValueChanged += voiceSliderChanged;
+                individualVolumeSlider.ValueChanged += individualVolumeSliderChanged;
+
+                doneInit = true;
             }
 
-            if (doneInit || !AudioManager.instance.ConfigLoaded)
-                return;
+            if (sceneName == "Gym")
+            {
+                settingsForm = GameObject.FindObjectOfType<Il2CppRUMBLE.UI.SettingsForm>();
+                if (settingsForm != null)
+                {
+                    undoNextAudioConfig = true;
+                }
 
-            RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
+                ResetIndividualVolume();
+            }
 
-            audioSettings.ModName = "SettingsUI";
-            audioSettings.ModVersion = "1.2.0";
-            audioSettings.SetFolder("SettingsUI");
+            else if (sceneName == "Map0" || sceneName == "Map1")
+            {
+                if (PlayerManager.instance.AllPlayers.Count >= 2)
+                {
+                    opponentName = PlayerManager.instance.AllPlayers[1].Data.GeneralData.InternalUsername;
+                    if (individualVolumes.ContainsKey(opponentName))
+                    {
+                        individualVolumeSlider.ValueChanged -= individualVolumeSliderChanged;
+                        individualVolumeSlider.Value = individualVolumes[opponentName];
+                        individualVolumeSlider.ValueChanged += individualVolumeSliderChanged;
+                    }
+                    else
+                    {
+                        individualVolumes[opponentName] = 1.0f;
+                        individualVolumeSlider.Value = 1.0f;
+                    }
+                }
+                else
+                {
+                   ResetIndividualVolume();
+                }
+            }
 
-            AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
-
-            // Initialize our settings with the saved Rumble settings
-            masterVolume = audioSettings.AddToList("Master Volume", audioConfig.MasterVolume, "Master volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
-            sfxVolume = audioSettings.AddToList("SFX Volume", audioConfig.SFXVolume, "Sound effects volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
-            musicVolume = audioSettings.AddToList("Music Volume", audioConfig.MusicVolume, "Music volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
-            voiceVolume = audioSettings.AddToList("Voice Volume", audioConfig.VoiceVolume, "Voice volume. 0-1 covers the normal range. >1 allows boosting beyond the normal volume limit.", tags);
-            audioSettings.GetFromFile();
-            masterVolume.SavedValueChanged += masterVolumeChanged;
-            sfxVolume.SavedValueChanged += sfxVolumeChanged;
-            musicVolume.SavedValueChanged += musicVolumeChanged;
-            voiceVolume.SavedValueChanged += voiceVolumeChanged;
-
-            masterSlider = Slider.AddSetting("Master Volume", "Lets you adjust master volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.MasterVolume, 2);
-            sfxSlider = Slider.AddSetting("SFX Volume", "Lets you adjust sound effects volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.SFXVolume, 2);
-            musicSlider = Slider.AddSetting("Music Volume", "Lets you adjust music volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.MusicVolume, 2);
-            voiceSlider = Slider.AddSetting("Global Voice Volume", "Lets you adjust voice chat volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.VoiceVolume, 2);
-            masterSlider.ValueChanged += masterSliderChanged;
-            sfxSlider.ValueChanged += sfxSliderChanged;
-            musicSlider.ValueChanged += musicSliderChanged;
-            voiceSlider.ValueChanged += voiceSliderChanged;
-
-            doneInit = true;
+            else
+            {
+                ResetIndividualVolume();
+            }
         }
 
-        public static void OnUIInit()
+        private static void OnUIInit()
         {
             RumbleModUI.UI.instance.AddMod(audioSettings);
         }
@@ -189,75 +237,142 @@ namespace SettingsUI
                         settingsForm.musicVolumeSlider.MoveToValue(settingsForm.musicVolumeSlider.ConvertToValue(Math.Min(Math.Max(value, 0.0f), 1.0f)));
                         break;
                     case SettingType.VoiceVolume:
-                        settingsForm.dialogueVolumeSlider.MoveToValue(settingsForm.dialogueVolumeSlider.ConvertToValue(Math.Min(Math.Max(value, 0.0f), 1.0f)));
+                        settingsForm.dialogueVolumeSlider.MoveToValue(settingsForm.dialogueVolumeSlider.ConvertToValue(Math.Min(Math.Max(voiceSlider.Value, 0.0f), 1.0f)));
                         break;
                 }
             }
         }
 
-        public static void masterVolumeChanged(object sender, EventArgs args)
+        private static void masterVolumeChanged(object sender, EventArgs args)
         {
-            ChangeSetting(SettingType.MasterVolume, ((RumbleModUI.ValueChange<float>)args).Value);
             masterSlider.ValueChanged -= masterSliderChanged;
             masterSlider.Value = ((RumbleModUI.ValueChange<float>)args).Value;
             masterSlider.ValueChanged += masterSliderChanged;
+            ChangeSetting(SettingType.MasterVolume, ((RumbleModUI.ValueChange<float>)args).Value);
         }
-        public static void sfxVolumeChanged(object sender, EventArgs args)
+        private static void sfxVolumeChanged(object sender, EventArgs args)
         {
-            ChangeSetting(SettingType.SFXVolume, ((RumbleModUI.ValueChange<float>)args).Value);
             sfxSlider.ValueChanged -= sfxSliderChanged;
             sfxSlider.Value = ((RumbleModUI.ValueChange<float>)args).Value;
             sfxSlider.ValueChanged += sfxSliderChanged;
+            ChangeSetting(SettingType.SFXVolume, ((RumbleModUI.ValueChange<float>)args).Value);
         }
-        public static void musicVolumeChanged(object sender, EventArgs args)
+        private static void musicVolumeChanged(object sender, EventArgs args)
         {
-            ChangeSetting(SettingType.MusicVolume, ((RumbleModUI.ValueChange<float>)args).Value);
             musicSlider.ValueChanged -= musicSliderChanged;
             musicSlider.Value = ((RumbleModUI.ValueChange<float>)args).Value;
             musicSlider.ValueChanged += musicSliderChanged;
+            ChangeSetting(SettingType.MusicVolume, ((RumbleModUI.ValueChange<float>)args).Value);
         }
-        public static void voiceVolumeChanged(object sender, EventArgs args)
+        private static void voiceVolumeChanged(object sender, EventArgs args)
         {
-            ChangeSetting(SettingType.VoiceVolume, ((RumbleModUI.ValueChange<float>)args).Value);
             voiceSlider.ValueChanged -= voiceSliderChanged;
             voiceSlider.Value = ((RumbleModUI.ValueChange<float>)args).Value;
             voiceSlider.ValueChanged += voiceSliderChanged;
+            ChangeSetting(SettingType.VoiceVolume, ((RumbleModUI.ValueChange<float>)args).Value * (individualVolumes.ContainsKey(opponentName) ? individualVolumes[opponentName] : 1.0f));
         }
-        public static void masterSliderChanged(object sender, Slider.ValueChangedEventArgs args)
+        private static void masterSliderChanged(object sender, Slider.ValueChangedEventArgs args)
         {
-            ChangeSetting(SettingType.MasterVolume, args.Value);
             masterVolume.SavedValueChanged -= masterVolumeChanged;
             masterVolume.SavedValue = args.Value;
             masterVolume.SavedValueChanged += masterVolumeChanged;
+            ChangeSetting(SettingType.MasterVolume, args.Value);
             masterVolume.Value = args.Value;
             RumbleModUI.UI.instance.ForceRefresh();
         }
-        public static void sfxSliderChanged(object sender, Slider.ValueChangedEventArgs args)
+        private static void sfxSliderChanged(object sender, Slider.ValueChangedEventArgs args)
         {
-            ChangeSetting(SettingType.SFXVolume, args.Value);
             sfxVolume.SavedValueChanged -= sfxVolumeChanged;
             sfxVolume.SavedValue = args.Value;
             sfxVolume.SavedValueChanged += sfxVolumeChanged;
+            ChangeSetting(SettingType.SFXVolume, args.Value);
             sfxVolume.Value = args.Value;
             RumbleModUI.UI.instance.ForceRefresh();
         }
-        public static void musicSliderChanged(object sender, Slider.ValueChangedEventArgs args)
+        private static void musicSliderChanged(object sender, Slider.ValueChangedEventArgs args)
         {
-            ChangeSetting(SettingType.MusicVolume, args.Value);
             musicVolume.SavedValueChanged -= musicVolumeChanged;
             musicVolume.SavedValue = args.Value;
             musicVolume.SavedValueChanged += musicVolumeChanged;
+            ChangeSetting(SettingType.MusicVolume, args.Value);
             musicVolume.Value = args.Value;
             RumbleModUI.UI.instance.ForceRefresh();
         }
-        public static void voiceSliderChanged(object sender, Slider.ValueChangedEventArgs args)
+        private static void voiceSliderChanged(object sender, Slider.ValueChangedEventArgs args)
         {
-            ChangeSetting(SettingType.VoiceVolume, args.Value);
             voiceVolume.SavedValueChanged -= voiceVolumeChanged;
             voiceVolume.SavedValue = args.Value;
             voiceVolume.SavedValueChanged += voiceVolumeChanged;
+            ChangeSetting(SettingType.VoiceVolume, args.Value * (individualVolumes.ContainsKey(opponentName) ? individualVolumes[opponentName] : 1.0f));
             voiceVolume.Value = args.Value;
             RumbleModUI.UI.instance.ForceRefresh();
+        }
+        private static void individualVolumeSliderChanged(object sender, Slider.ValueChangedEventArgs args)
+        {
+            if (opponentName != "")
+            {
+                ChangeSetting(SettingType.VoiceVolume, (float)voiceVolume.SavedValue * args.Value);
+                individualVolumes[opponentName] = args.Value;
+                doSave = true;
+                MelonCoroutines.Start(ScheduleSaveIndividualVolumes());
+            }
+        }
+
+        private static void ResetIndividualVolume()
+        {
+            opponentName = "";
+            if (individualVolumeSlider != null)
+            {
+                individualVolumeSlider.ValueChanged -= individualVolumeSliderChanged;
+                individualVolumeSlider.Value = 1.0f;
+                individualVolumeSlider.ValueChanged += individualVolumeSliderChanged;
+            }
+        }
+
+        private static void LoadIndividualVolumes()
+        {
+            if (File.Exists(individualVolumesPath))
+            {
+                // Don't catch errors. Otherwise, the file might be overwritten with an empty file
+                string[] lines = File.ReadAllLines(individualVolumesPath);
+                individualVolumes.Clear();
+                foreach (string line in lines)
+                {
+                    string[] parts = line.Split('=');
+                    if (parts.Length == 2)
+                    {
+                        if (float.TryParse(parts[1], out float volume))
+                        {
+                            individualVolumes[parts[0]] = volume;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                MelonLogger.Msg("Individual volumes file not found. A new one will be created if needed.");
+            }
+        }
+
+        private static IEnumerator ScheduleSaveIndividualVolumes()
+        {
+            yield return new WaitForSeconds(1.0f);
+            if (doSave)
+            {
+                SaveIndividualVolumes();
+                doSave = false;
+            }
+        }
+
+        private static void SaveIndividualVolumes()
+        {
+            List<string> lines = new List<string>();
+            foreach (KeyValuePair<string, float> kvp in individualVolumes)
+            {
+                lines.Add(kvp.Key + "=" + kvp.Value);
+            }
+            try { File.WriteAllLines(individualVolumesPath, lines); }
+            catch (Exception e) { MelonLogger.Error("Failed to save individual volumes:\n" + e); }
         }
     }
 }
