@@ -331,6 +331,7 @@ namespace SettingsUI
                 individualVolumeSlider.ValueChanged -= individualVolumeSliderChanged;
                 individualVolumeSlider.Value = 1.0f;
                 individualVolumeSlider.ValueChanged += individualVolumeSliderChanged;
+                ChangeSetting(SettingType.VoiceVolume, (float)voiceVolume.SavedValue);
             }
         }
 
