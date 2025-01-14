@@ -113,6 +113,17 @@ namespace SettingsUI
         {
             RumbleModUI.UI.instance.UI_Initialized += OnUIInit;
             LoadIndividualVolumes();
+
+            masterSlider = Slider.AddSetting("Master Volume", "Lets you adjust master volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, 0.0f, 2);
+            sfxSlider = Slider.AddSetting("SFX Volume", "Lets you adjust sound effects volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, 0.0f, 2);
+            musicSlider = Slider.AddSetting("Music Volume", "Lets you adjust music volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, 0.0f, 2);
+            voiceSlider = Slider.AddSetting("Global Voice Volume", "Lets you adjust voice chat volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, 0.0f, 2);
+            individualVolumeSlider = Slider.AddSetting("Individual Voice Volume", "Lets you adjust the volume of individual players' voices. The slider's range is 0%-200%.", 0.0f, individualVolumeLimit, 1.0f, 2);
+            masterSlider.ValueChanged += masterSliderChanged;
+            sfxSlider.ValueChanged += sfxSliderChanged;
+            musicSlider.ValueChanged += musicSliderChanged;
+            voiceSlider.ValueChanged += voiceSliderChanged;
+            individualVolumeSlider.ValueChanged += individualVolumeSliderChanged;
         }
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
@@ -137,17 +148,11 @@ namespace SettingsUI
                 sfxVolume.SavedValueChanged += sfxVolumeChanged;
                 musicVolume.SavedValueChanged += musicVolumeChanged;
                 voiceVolume.SavedValueChanged += voiceVolumeChanged;
-
-                masterSlider = Slider.AddSetting("Master Volume", "Lets you adjust master volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.MasterVolume, 2);
-                sfxSlider = Slider.AddSetting("SFX Volume", "Lets you adjust sound effects volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.SFXVolume, 2);
-                musicSlider = Slider.AddSetting("Music Volume", "Lets you adjust music volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.MusicVolume, 2);
-                voiceSlider = Slider.AddSetting("Global Voice Volume", "Lets you adjust voice chat volume with the arm slider. The slider's range is 0%-400%.", 0.0f, 1.0f * boostFactor, audioConfig.VoiceVolume, 2);
-                individualVolumeSlider = Slider.AddSetting("Individual Voice Volume", "Lets you adjust the volume of individual players' voices. The slider's range is 0%-200%.", 0.0f, individualVolumeLimit, 1.0f, 2);
-                masterSlider.ValueChanged += masterSliderChanged;
-                sfxSlider.ValueChanged += sfxSliderChanged;
-                musicSlider.ValueChanged += musicSliderChanged;
-                voiceSlider.ValueChanged += voiceSliderChanged;
-                individualVolumeSlider.ValueChanged += individualVolumeSliderChanged;
+                
+                masterSlider.Value = audioConfig.MasterVolume;
+                sfxSlider.Value = audioConfig.SFXVolume;
+                musicSlider.Value = audioConfig.MusicVolume;
+                voiceSlider.Value = audioConfig.VoiceVolume;
 
                 doneInit = true;
             }
