@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using MelonLoader;
 using SettingsUI;
 
-[assembly: MelonInfo(typeof(Mod), "SettingsUI", "1.3.0", "MasterMischief")]
+[assembly: MelonInfo(typeof(Mod), "SettingsUI", "1.3.1", "MasterMischief")]
 [assembly: MelonGame("Buckethead Entertainment", "RUMBLE")]
 [assembly: VerifyLoaderVersion(0, 6, 2, true)]
 

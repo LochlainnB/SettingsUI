@@ -122,7 +122,7 @@ namespace SettingsUI
                 RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
 
                 audioSettings.ModName = "SettingsUI";
-                audioSettings.ModVersion = "1.3.0";
+                audioSettings.ModVersion = "1.3.1";
                 audioSettings.SetFolder("SettingsUI");
 
                 AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
@@ -167,7 +167,7 @@ namespace SettingsUI
             {
                 if (PlayerManager.instance.AllPlayers.Count >= 2)
                 {
-                    opponentName = PlayerManager.instance.AllPlayers[1].Data.GeneralData.InternalUsername;
+                    opponentName = PlayerManager.instance.AllPlayers[1].Data.GeneralData.PlayFabMasterId;
                     if (individualVolumes.ContainsKey(opponentName))
                     {
                         individualVolumeSlider.ValueChanged -= individualVolumeSliderChanged;
