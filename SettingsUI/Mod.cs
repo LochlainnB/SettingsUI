@@ -55,7 +55,7 @@ namespace SettingsUI
         {
             private static void Postfix(AudioManager __instance, AudioConfiguration config)
             {
-                if (undoNextAudioConfig)
+                if (undoNextAudioConfig && !configChangeFromSelf)
                 {
                     // Call came from SettingsForm's initialisation and clamped any out of range values. Undo this
                     AudioConfiguration audioConfig;
@@ -133,7 +133,7 @@ namespace SettingsUI
                 RumbleModUI.Tags tags = new RumbleModUI.Tags { DoNotSave = true };
 
                 audioSettings.ModName = "SettingsUI";
-                audioSettings.ModVersion = "1.3.1";
+                audioSettings.ModVersion = "1.3.2";
                 audioSettings.SetFolder("SettingsUI");
 
                 AudioConfiguration audioConfig = AudioManager.instance.audioConfig;
